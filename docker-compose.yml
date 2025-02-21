@@ -1,0 +1,188 @@
+version: "3.9"
+
+services:
+  backend:
+    image: "synthesizedio/synthesized-api:1.84.0"
+    depends_on:
+      db:
+        condition: service_healthy
+      transformed_db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      # ldap:
+      #   condition: service_healthy
+    ports:
+      - "8081:8081"
+    networks:
+      - api-service-net
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/api_postgres
+      - SPRING_DATASOURCE_USERNAME=apiuser
+      - SPRING_DATASOURCE_PASSWORD=apipassword
+      - TDK_WORKINGDIRECTORY_ENABLED=true
+      - TDK_WORKINGDIRECTORY_PATH=/app/rocksdb
+      - JWT_SECRET=RwRJQevcGEnTWu/fCJXf5mBoITThyMJaodqr9T20Su45wVsaPVuiiDnm92kfT63M+Ze4jrrh8v1uRP/iAhyrtjQDLft27lKvPQXqI3eAYic7Pvxlzkehlzpop7/u8O/mW1sPT3PVmgPlUTr5YWrhAwLYUxW2Hbx9uPyVDol8gNBrKbuhdHSHjCCZ1A/m9rrLdTbux393/ItxKwjvmwpRuHFBzc+4foDh/548Kpp2vVPB5jDva7pTmuTu/OAWc1HK9IE6WCXiKB2/gHPpsMjjctpKXUK+cnxVmphXDzK6KYYfHglolcyaosgD9eB+bveZj6qESPKWPfE4ihPlTQHncw==
+      - ADMIN_EMAIL=admin@synthesized.io
+      - ADMIN_DEFAULT_PASSWORD=Qq12345_
+
+      # UI Flags
+      - UI_ENVIRONMENT=on-premise
+      - UI_TDK_AGENTS=true
+      - UI_TDK_AGENTS_BY_DEFAULT=false
+      - UI_VISUAL_EDITOR=false
+      - UI_PII_SCAN=false
+      - UI_WORKFLOW_WIZARD=false
+      # If true, every user sees only workflows created by oneself
+      #- GOVERNOR_SECURITY_OWNERACCESSONLY=true
+
+      # - SPRING_SECURITY_SAML2_RELYINGPARTY_REGISTRATION_GOOGLE_ASSERTINGPARTY_METADATAURI=file:/app/GoogleIDPMetadata.xml
+      # - SPRING_LDAP_URLS=ldap://ldap:389
+      # - SPRING_LDAP_BASE=dc=synthesized,dc=io
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENTID=1242cbf9311266a52a87
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENTSECRET=8361109b472d47a7cf74e344c9cc25129572024f
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_REDIRECTURI=http://localhost/oauth2/{registrationId}
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENTID=testtest
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENTSECRET=testtest
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_MICROSOFT_CLIENTID=testtest
+      # - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_MICROSOFT_CLIENTSECRET=testtest
+
+    # volumes:
+    #   - [your path to rocksdb]:/app/rocksdb
+    #   - [your path to logs]:/app/logs
+    healthcheck:
+      test: "curl -f http://localhost:8081/api/v1/healthy || exit 1"
+      interval: "10s"
+      timeout: "3s"
+      start_period: "15s"
+      retries: 5
+
+  agent:
+    image: "synthesizedio/synthesized-agent:1.84.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - api-service-net
+    environment:
+      - TDK_WORKINGDIRECTORY_ENABLED=true
+      - TDK_WORKINGDIRECTORY_PATH=/app/rocksdb
+      - AGENT_SERVERHOST=backend
+      - AGENT_SERVERPORT=50055
+      - AGENT_TAGS=default_agent
+      - AGENT_DATASOURCES=*
+      - AGENT_USEPLAINTEXT=true
+    # volumes:
+    #   - [your path to rocksdb]:/app/rocksdb
+    #   - [your path to logs]:/app/logs
+    healthcheck:
+      test: "curl -f http://localhost:8083/actuator/health || exit 1"
+      interval: "10s"
+      timeout: "3s"
+      start_period: "15s"
+      retries: 5
+
+  db:
+    image: "postgres:17.2-alpine"
+    ports:
+      - "5432:5432"
+    volumes:
+      - "./initdb/create_governor_db.sql:/docker-entrypoint-initdb.d/1.sql"
+      - "./initdb/create_governor_schema.sql:/docker-entrypoint-initdb.d/2.sql"
+    networks:
+      - api-service-net
+    environment:
+      - POSTGRES_USER=apiuser
+      - POSTGRES_PASSWORD=apipassword
+    healthcheck:
+      test: "pg_isready -d api_postgres -q -U apiuser"
+      interval: "3s"
+      timeout: "3s"
+      start_period: "3s"
+      retries: 30
+
+  transformed_db:
+    image: "synthesizedio/pagila:1.8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - "./initdb/create_apiuser.sql:/docker-entrypoint-initdb.d/3.sql"
+      - "./initdb/create_input_db.sql:/docker-entrypoint-initdb.d/4.sql"
+      - "./initdb/create_output_db.sql:/docker-entrypoint-initdb.d/5.sql"
+    networks:
+      - api-service-net
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    healthcheck:
+      test: "pg_isready -d output_source -q -U postgres"
+      interval: "3s"
+      timeout: "3s"
+      start_period: "3s"
+      retries: 30
+
+  frontend:
+    image: "synthesizedio/synthesized-front:1.84.0"
+    networks:
+      - api-service-net
+      - private-net
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    environment:
+      # private hosts
+      - API_INTERNAL_HOST=backend
+      - API_HTTP_INTERNAL_PORT=8081
+      - API_GRPC_INTERNAL_PORT=50055
+    healthcheck:
+      test: "curl -f http://localhost:80 || exit 1"
+      interval: "3s"
+      timeout: "3s"
+      start_period: "3s"
+      retries: 30
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - api-service-net
+    command:
+      - server
+      - /data
+      - --console-address
+      - ":9001"
+    healthcheck:
+      test: "curl -f -s http://localhost:9000/minio/health/live || exit 1"
+      interval: "3s"
+      timeout: "3s"
+      start_period: "10s"
+      retries: 3
+
+  # ldap:
+  #   image: pingidentity/ldap-sdk-tools:edge
+  #   ports:
+  #     - "389:389"
+  #   command: in-memory-directory-server \
+  #     --baseDN dc=synthesized,dc=io \
+  #     --port 389 \
+  #     --ldifFile /opt/ldap.ldif \
+  #     --accessLogToStandardOut
+  #   volumes:
+  #     - ./config/ldap/test-server.ldif:/opt/ldap.ldif
+  #   healthcheck:
+  #     test: "nc -zv localhost 389"
+  #     interval: "3s"
+  #     timeout: "3s"
+  #     start_period: "3s"
+  #     retries: 30
+  #   networks:
+  #     - api-service-net
+
+networks:
+  api-service-net:
+  private-net:
+    internal: true

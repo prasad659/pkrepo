@@ -1,0 +1,83 @@
+dn: dc=synthesized,dc=io
+objectclass: top
+objectclass: domain
+objectclass: extensibleObject
+dc: synthesized
+
+dn: ou=groups,dc=synthesized,dc=io
+objectclass: top
+objectclass: organizationalUnit
+ou: groups
+
+dn: ou=people,dc=synthesized,dc=io
+objectclass: top
+objectclass: organizationalUnit
+ou: people
+
+dn: uid=ben,ou=people,dc=synthesized,dc=io
+objectclass: top
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+cn: Ben Alex
+sn: Alex
+uid: ben
+userPassword: $2a$10$c6bSeWPhg06xB1lvmaWNNe4NROmZiSpYhlocU/98HNr2MhIOiSt36
+
+dn: uid=bob,ou=people,dc=synthesized,dc=io
+objectclass: top
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+cn: Bob Hamilton
+sn: Hamilton
+uid: bob
+userPassword: bobspassword
+
+dn: uid=joe,ou=people,dc=synthesized,dc=io
+objectclass: top
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+cn: Joe Meadows
+sn: Meadows
+uid: joe
+userPassword: joespassword
+
+dn: uid=laila,ou=people,dc=synthesized,dc=io
+objectclass: top
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+cn: Laila Petersen
+sn: Petersen
+uid: laila
+userPassword: lailaspassword
+
+dn: cn=administrators,ou=groups,dc=synthesized,dc=io
+objectclass: top
+objectclass: groupOfUniqueNames
+cn: administrators
+ou: administrator
+uniqueMember: uid=bob,ou=people,dc=synthesized,dc=io
+
+dn: cn=owners,ou=groups,dc=synthesized,dc=io
+objectclass: top
+objectclass: groupOfUniqueNames
+cn: owners
+ou: owner
+uniqueMember: uid=ben,ou=people,dc=springframework,dc=org
+
+dn: cn=compliance,ou=groups,dc=synthesized,dc=io
+objectclass: top
+objectclass: groupOfUniqueNames
+cn: compliance
+ou: compliance
+uniqueMember: uid=joe,ou=people,dc=synthesized,dc=io
+
+dn: cn=operators,ou=groups,dc=synthesized,dc=io
+objectclass: top
+objectclass: groupOfUniqueNames
+cn: operators
+ou: operator
+uniqueMember: uid=laila,ou=people,dc=synthesized,dc=io
